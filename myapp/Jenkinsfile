@@ -1,0 +1,62 @@
+pipeline {
+    agent any
+    environment {
+        registry = 'thangdz233/app-python'
+        IMAGE_TAG='v0.0.1'
+    }
+    stages {
+        stage'checkout source code' {
+            steps {
+                git 'https://github.com/thanglnde/cicd-kubernetes.git'
+            }
+        }
+
+        // stage('Scan & Review with Sonar') {
+        //     steps {
+        //         withSonarQubeEnv(installationName: 'my-sonar') {
+        //             sh ''
+        //         }
+        //     }
+        // }
+
+        stage('Packaging/Pushing image') {
+            steps {
+                withDockerRegistry(credentialsId: 'dockerhub', url: 'https://index.docker.io/v1/') {
+                    sh 'docker build -t $registry:$IMAGE_TAG .'
+                    sh 'docker push $registry:$IMAGE_TAG'
+                }
+            }
+        }
+
+        stage('Deploy to DEV') {
+            steps {
+                echo 'Deploying and cleaning'
+                sh 'docker image pull $registry:$IMAGE_TAG'
+                sh 'docker container stop $registry:$IMAGE_TAG || echo "this container does not exist" '
+                sh 'docker network create dev || echo "this network exists"'
+                sh 'echo y | docker container prune '
+
+                sh 'docker container run -d --rm --name $registry:$IMAGE_TAG -p 8080:8080 --network dev thangdz233/app-python'
+            }
+        }
+        stage('Deploy to PROD'){
+            agent {
+                node {
+                    label kubernetes-prod
+                    customWorkspace /home/prod/jenkins
+                }
+            }
+            steps {
+                script {
+                    kubernetesDeploy(configs: "~/k8s/mainfest.yaml")
+                }
+            }
+        }
+    }
+    post {
+        // Clean after build
+        always {
+            cleanWs()
+        }
+    }
+}

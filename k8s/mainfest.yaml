@@ -1,0 +1,144 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+
+---
+apiVersion: app/v1
+kind: Deployment
+metadata:
+  name: flask
+  namespace: dev
+spec:
+  replicas: 2
+  seletor:
+    matchLabels:
+      app: flask
+    template:
+      metadata:
+        labels:
+          app: flask
+      spec:
+        container:
+          - name: flask
+            image: thangdz233/app-python:v0.0.1
+            ports:
+              - name: http
+                container: 8080
+            resources:
+              requests:
+                memory: 64Mi
+                cpu: 250m
+              limits:
+                memory: 128Mi
+                cpu: 500m
+            readinessProbe:
+              httpGet:
+                path: /healthz
+                port: http
+              failureThreshold: 2
+              periodSeconds: 5
+            livenessProbe:
+              httpGet:
+                path: /healthz
+                port: http
+              failureThreshold: 2
+              periodSeconds: 10
+            startupProbe:
+              httpGet:
+                path: /healthz
+                port: http
+              failureThreshold: 30
+              periodSeconds: 10
+            volumeMounts:
+              - name: config
+                subPath: message
+                mountPath: /etc/message.txt
+      volumes:
+        - name: config
+          subPath: message
+          mountPath: /etc/message.txt
+      affinity:
+        podAntiAffinity:
+          requireDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In 
+                    values: 
+                      - flask
+              topologyKey: 'kubenetes.io/hostname'
+
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: flask-node-port
+#   namespace: dev
+# spec:
+#   type: NodePort
+#   seletor:
+#     app: flask
+#   ports:
+#     - port: 8080
+#       targetPort: http
+#       nodePort: 30001 #range 30000-32767
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-load-balancer
+  namespace: dev
+spec:
+  type: LoadBalancer
+  seletor:
+    app: flask
+  ports:
+    - port: 8080
+      targetPort: http
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: flask
+#   namespace: dev
+# spec:
+#   type: ClusterIP
+#   selector:
+#     app: flask
+#   ports:
+#     - port: 8080
+#       targetPort: http
+
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: flask
+#   namespace: dev
+#   annotations:
+#     # kubernetes.io/ingress.class: external-nginx
+# spec:
+#   ingressClassName: external-nginx
+#   rules:
+#     - host: api.antonputra.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: flask
+#                 port:
+#                   number: 8080
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config
+  namespace: dev
+data:
+  message: "Hello World from ConfigMap!"
