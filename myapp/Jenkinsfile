@@ -36,14 +36,14 @@ pipeline {
                 sh 'docker network create dev || echo "this network exists"'
                 sh 'echo y | docker container prune '
 
-                sh 'docker container run -d --rm --name $registry:$IMAGE_TAG -p 8080:8080 --network dev thangdz233/app-python'
+                sh 'docker container run -d --rm --name $registry:$IMAGE_TAG -p 8080:8080 --network dev $registry'
             }
         }
         stage('Deploy to PROD'){
             agent {
                 node {
-                    label kubernetes-prod
-                    customWorkspace /home/prod/jenkins
+                    label 'kubernetes-prod'
+                    customWorkspace '/home/prod/jenkins'
                 }
             }
             steps {
